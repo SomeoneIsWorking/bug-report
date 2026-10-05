@@ -220,6 +220,19 @@ void testForm(Rml::Context &context, NullRenderInterface &render) {
     context.Render();
     // The picture's relative src resolved inside the draft directory.
     CHECK(fs::path(render.lastTexture) == draft->directory() / "screen.png");
+    // Laid out as a page, not collapsed to its narrowest word: an overflow box whose scrollbar
+    // RmlUi has no styled size for gives its content no width at all.
+    if (Rml::ElementDocument *laidOut = context.GetDocument(0)) {
+      const float contextWidth = static_cast<float>(context.GetDimensions().x);
+      Rml::Element *summary = laidOut->GetElementById("summary");
+      CHECK(summary != nullptr && summary->GetClientWidth() > contextWidth * 0.8F);
+      Rml::ElementList pictures;
+      laidOut->GetElementsByClassName(pictures, "picture");
+      CHECK(!pictures.empty());
+      for (Rml::Element *picture : pictures) {
+        CHECK(picture->GetClientWidth() > contextWidth * 0.4F);
+      }
+    }
 
     Rml::ElementDocument *document = context.GetDocument(0);
     CHECK(document != nullptr);
