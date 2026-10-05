@@ -48,10 +48,21 @@ struct Reproduction {
   std::string command;            // a single command line that replays it, or empty
 };
 
-// The player's own words: what the form collects and what a commit records.
+// A region the player marked on one picture, as fractions of that picture's width and height
+// measured from its top-left corner, so it holds at whatever size the picture is shown or stored.
+struct Mark {
+  std::string file; // the picture attachment it is drawn on
+  double x = 0;
+  double y = 0;
+  double width = 0;
+  double height = 0;
+};
+
+// The player's input: what the form collects and what a commit records.
 struct PlayerText {
   std::string summary; // one line, required
   std::string description;
+  std::vector<Mark> marks; // where on the pictures the bug shows, possibly none
 };
 
 struct Report {
@@ -61,6 +72,7 @@ struct Report {
   std::string description;
   std::vector<Fact> facts;
   std::vector<Attachment> attachments;
+  std::vector<Mark> marks;
   Reproduction reproduction;
 };
 

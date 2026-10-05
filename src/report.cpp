@@ -1,5 +1,6 @@
 #include "bug_report/report.h"
 
+#include <cmath>
 #include <cstdio>
 #include <string>
 #include <utility>
@@ -55,6 +56,12 @@ public:
   void value(std::string_view text) {
     separate();
     appendJsonString(mOut, text);
+  }
+  void number(double value) {
+    separate();
+    char text[32];
+    std::snprintf(text, sizeof text, "%.4f", value);
+    mOut += text;
   }
   void beginObject() {
     open('{');
@@ -139,6 +146,33 @@ void appendCell(std::string &out, std::string_view text) {
   }
 }
 
+std::string percent(double fraction) {
+  return std::to_string(std::lround(fraction * 100.0)) + "%";
+}
+
+// The regions marked on one picture, as spans of its width and height.
+void appendMarks(std::string &out, const std::vector<Mark> &marks, std::string_view file) {
+  bool any = false;
+  for (const Mark &mark : marks) {
+    if (mark.file != file) {
+      continue;
+    }
+    any = true;
+    out += "- Marked: x ";
+    out += percent(mark.x);
+    out += "–";
+    out += percent(mark.x + mark.width);
+    out += ", y ";
+    out += percent(mark.y);
+    out += "–";
+    out += percent(mark.y + mark.height);
+    out += " of the picture\n";
+  }
+  if (any) {
+    out += "\n";
+  }
+}
+
 } // namespace
 
 std::string_view roleName(AttachmentRole role) {
@@ -193,6 +227,23 @@ std::string toJson(const Report &report) {
   }
   json.endArray();
 
+  json.key("marks");
+  json.beginArray();
+  for (const Mark &mark : report.marks) {
+    json.beginObject();
+    field("file", mark.file);
+    json.key("x");
+    json.number(mark.x);
+    json.key("y");
+    json.number(mark.y);
+    json.key("width");
+    json.number(mark.width);
+    json.key("height");
+    json.number(mark.height);
+    json.endObject();
+  }
+  json.endArray();
+
   json.key("reproduction");
   json.beginObject();
   field("summary", report.reproduction.summary);
@@ -233,6 +284,7 @@ std::string toMarkdown(const Report &report) {
         out += "](";
         out += attachment.file;
         out += ")\n\n";
+        appendMarks(out, report.marks, attachment.file);
       } else {
         out += "- `";
         out += attachment.file;
