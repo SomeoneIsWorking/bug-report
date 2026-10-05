@@ -1,0 +1,27 @@
+{
+  "format": "bug-report/1",
+  "application": "Test Title",
+  "created": "2026-09-21T14:13:20Z",
+  "summary": "Tomba falls | through the floor",
+  "description": "line one\nline \"two\"",
+  "facts": [
+    {
+      "name": "frame",
+      "value": "1234"
+    }
+  ],
+  "attachments": [
+    {
+      "file": "screen.png",
+      "role": "screenshot",
+      "label": "Native"
+    }
+  ],
+  "reproduction": {
+    "summary": "Replay the pad",
+    "steps": [
+      "step one"
+    ],
+    "command": "replay \"repro.pad\""
+  }
+}

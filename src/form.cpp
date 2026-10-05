@@ -61,6 +61,21 @@ body {
   border-radius: 8dp;
   overflow-y: auto;
 }
+/* RmlUi draws a scrollbar only from these rules; an overflow box whose scrollbar has no styled size
+   gives its content no width at all. */
+scrollbarvertical {
+  width: 10dp;
+}
+scrollbarvertical slidertrack {
+  background-color: #00000040;
+}
+scrollbarvertical sliderbar {
+  background-color: #4b4e5c;
+  border-radius: 4dp;
+}
+scrollbarvertical sliderarrowdec, scrollbarvertical sliderarrowinc {
+  height: 0;
+}
 h1 {
   display: block;
   font-size: 22dp;
