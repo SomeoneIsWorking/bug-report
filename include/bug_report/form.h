@@ -9,6 +9,8 @@
 // `LoadTexture` must decode the image format the application wrote (PNG in practice).
 //
 // Keys: Escape cancels; Ctrl+Enter saves (Enter in the summary moves to the description).
+// Mouse: dragging on a picture marks the region where the bug shows (several are allowed);
+// "Clear marks" removes them. Marks come back in text() with the typed words.
 #pragma once
 
 #include "bug_report/report.h"
@@ -56,7 +58,7 @@ public:
   // to Editing so the player can fix it.
   void rejectSave(std::string_view reason);
 
-  // Replace what the player typed, for keyboardless drivers (a control channel, a test).
+  // Replace what the player typed and marked, for keyboardless drivers (a control channel, a test).
   void fill(const PlayerText &text);
 
   // Programmatic Save / Cancel, for keyboardless drivers (a control channel, a test).

@@ -88,6 +88,17 @@ bool isReservedName(std::string_view file) {
   return file == kReportFileName || file == kReadmeFileName || file == kDraftMarker;
 }
 
+// A mark names an attached picture and lies inside it (a little rounding slack at the far edges).
+bool marksAPicture(const Report &report, const Mark &mark) {
+  constexpr double kSlack = 1e-3;
+  bool picture = false;
+  for (const Attachment &attachment : report.attachments) {
+    picture = picture || (attachment.file == mark.file && isPicture(attachment.role));
+  }
+  return picture && mark.x >= 0 && mark.y >= 0 && mark.width > 0 && mark.height > 0 &&
+         mark.x + mark.width <= 1 + kSlack && mark.y + mark.height <= 1 + kSlack;
+}
+
 } // namespace
 
 struct Draft::State {
@@ -213,9 +224,16 @@ std::optional<fs::path> Draft::commit(const PlayerText &text, std::string &error
     error = "write a one-line summary first";
     return std::nullopt;
   }
+  for (const Mark &mark : text.marks) {
+    if (!marksAPicture(mState->report, mark)) {
+      error = "a mark must lie inside an attached picture: " + mark.file;
+      return std::nullopt;
+    }
+  }
   Report &report = mState->report;
   report.summary = text.summary;
   report.description = text.description;
+  report.marks = text.marks;
   if (!writeFile(mState->directory / kReportFileName, toJson(report), error) ||
       !writeFile(mState->directory / kReadmeFileName, toMarkdown(report), error)) {
     return std::nullopt;

@@ -84,8 +84,10 @@ void testCommitWritesReportAndRenames() {
   draft->addFact("frame", "1234");
   draft->setReproduction({"Replay the pad", {"step one"}, "replay \"repro.pad\""});
 
-  const std::optional<fs::path> committed =
-      draft->commit({"Tomba falls | through the floor", "line one\nline \"two\""}, error);
+  const std::optional<fs::path> committed = draft->commit({"Tomba falls | through the floor",
+                                                           "line one\nline \"two\"",
+                                                           {{"screen.png", 0.25, 0.1, 0.5, 0.3}}},
+                                                          error);
   CHECK(committed.has_value());
   CHECK(!draft->isOpen());
   if (!committed) {
@@ -101,11 +103,14 @@ void testCommitWritesReportAndRenames() {
   CHECK(json.find("\"description\": \"line one\\nline \\\"two\\\"\"") != std::string::npos);
   CHECK(json.find("\"role\": \"screenshot\"") != std::string::npos);
   CHECK(json.find("\"command\": \"replay \\\"repro.pad\\\"\"") != std::string::npos);
+  CHECK(json.find("\"x\": 0.2500") != std::string::npos);
+  CHECK(json.find("\"height\": 0.3000") != std::string::npos);
 
   const std::string readme = readFile(*committed / bug_report::kReadmeFileName);
   CHECK(readme.starts_with("# Tomba falls | through the floor\n"));
   CHECK(readme.find("![Native](screen.png)") != std::string::npos);
   CHECK(readme.find("| frame | 1234 |") != std::string::npos);
+  CHECK(readme.find("- Marked: x 25%–75%, y 10%–40% of the picture") != std::string::npos);
   CHECK(entriesIn(root) == 1);
 }
 
@@ -125,6 +130,15 @@ void testRefusals() {
   writeFile(attachmentPath(*draft, "a.pad"), "pad");
   CHECK(draft->attach("a.pad", bug_report::AttachmentRole::Reproduction, "pad", error));
   CHECK(!draft->attach("a.pad", bug_report::AttachmentRole::Reproduction, "pad", error));
+
+  // A mark must lie on an attached picture, inside it.
+  writeFile(attachmentPath(*draft, "shot.png"), "png");
+  CHECK(draft->attach("shot.png", bug_report::AttachmentRole::Screenshot, "shot", error));
+  error.clear();
+  CHECK(!draft->commit({"bad mark", "", {{"a.pad", 0, 0, 0.5, 0.5}}}, error).has_value());
+  CHECK(!error.empty());
+  CHECK(!draft->commit({"bad mark", "", {{"shot.png", 0.8, 0, 0.5, 0.5}}}, error).has_value());
+  CHECK(!draft->commit({"bad mark", "", {{"shot.png", 0, 0, 0, 0.5}}}, error).has_value());
 
   error.clear();
   CHECK(!draft->commit({"  \n", ""}, error).has_value());
@@ -197,6 +211,68 @@ void sendKey(Rml::Context &context, Rml::Input::KeyIdentifier key, int modifiers
   context.ProcessKeyUp(key, modifiers);
 }
 
+// A press at `from` and a release at `to`, as fractions of a picture frame.
+struct Stroke {
+  Rml::Vector2f from;
+  Rml::Vector2f to;
+};
+
+void dragOn(Rml::Context &context, Rml::Element &frame, const Stroke &stroke) {
+  const Rml::Vector2f from = stroke.from;
+  const Rml::Vector2f to = stroke.to;
+  const Rml::Vector2f origin = frame.GetAbsoluteOffset(Rml::BoxArea::Content);
+  const Rml::Vector2f size = frame.GetBox().GetSize(Rml::BoxArea::Content);
+  const auto at = [&](Rml::Vector2f fraction) {
+    return Rml::Vector2i{static_cast<int>(origin.x + fraction.x * size.x),
+                         static_cast<int>(origin.y + fraction.y * size.y)};
+  };
+  context.ProcessMouseMove(at(from).x, at(from).y, 0);
+  context.ProcessMouseButtonDown(0, 0);
+  context.ProcessMouseMove(at(to).x, at(to).y, 0);
+  context.ProcessMouseButtonUp(0, 0);
+  context.Update();
+}
+
+bool near(double value, double expected) {
+  return value > expected - 0.02 && value < expected + 0.02;
+}
+
+void testMarking(Rml::Context &context, Rml::ElementDocument &document, bug_report::Form &form) {
+  Rml::ElementList frames;
+  document.GetElementsByClassName(frames, "frame");
+  CHECK(frames.size() == 1);
+  if (frames.size() != 1) {
+    return;
+  }
+  Rml::Element &frame = *frames[0];
+  CHECK(frame.GetBox().GetSize(Rml::BoxArea::Content).y > 0); // the picture gives it a height
+
+  // Dragged right-to-left and bottom-to-top: the mark is still the box between the two points.
+  dragOn(context, frame, {.from = {0.75F, 0.6F}, .to = {0.25F, 0.2F}});
+  std::vector<bug_report::Mark> marks = form.text().marks;
+  CHECK(marks.size() == 1);
+  if (marks.size() == 1) {
+    CHECK(marks[0].file == "screen.png");
+    CHECK(near(marks[0].x, 0.25) && near(marks[0].y, 0.2));
+    CHECK(near(marks[0].width, 0.5) && near(marks[0].height, 0.4));
+  }
+  Rml::ElementList boxes;
+  document.GetElementsByClassName(boxes, "mark");
+  CHECK(boxes.size() == 1);
+
+  // A press without a drag is a click, not a mark.
+  dragOn(context, frame, {.from = {0.5F, 0.5F}, .to = {0.5F, 0.5F}});
+  CHECK(form.text().marks.size() == 1);
+
+  if (Rml::Element *clear = document.GetElementById("clear")) {
+    clear->Click();
+  }
+  CHECK(form.text().marks.empty());
+  boxes.clear();
+  document.GetElementsByClassName(boxes, "mark");
+  CHECK(boxes.empty());
+}
+
 void testForm(Rml::Context &context, NullRenderInterface &render) {
   const fs::path root = makeRoot("form");
   std::optional<bug_report::Draft> draft = openDraft(root);
@@ -232,6 +308,7 @@ void testForm(Rml::Context &context, NullRenderInterface &render) {
       for (Rml::Element *picture : pictures) {
         CHECK(picture->GetClientWidth() > contextWidth * 0.4F);
       }
+      testMarking(context, *laidOut, form);
     }
 
     Rml::ElementDocument *document = context.GetDocument(0);
@@ -275,7 +352,9 @@ void testForm(Rml::Context &context, NullRenderInterface &render) {
   CHECK(escaped.outcome() == bug_report::Form::Outcome::Cancelled);
 
   bug_report::Form driven(context, *draft, options);
-  driven.fill(bug_report::PlayerText{"Scripted", "From a control channel"});
+  driven.fill(bug_report::PlayerText{
+      "Scripted", "From a control channel", {{"screen.png", 0.1, 0.1, 0.2, 0.2}}});
+  CHECK(driven.text().marks.size() == 1);
   CHECK(driven.text().summary == "Scripted");
   CHECK(driven.text().description == "From a control channel");
   driven.requestSave();
