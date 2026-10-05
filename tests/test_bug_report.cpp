@@ -262,6 +262,9 @@ void testForm(Rml::Context &context, NullRenderInterface &render) {
   CHECK(escaped.outcome() == bug_report::Form::Outcome::Cancelled);
 
   bug_report::Form driven(context, *draft, options);
+  driven.fill(bug_report::PlayerText{"Scripted", "From a control channel"});
+  CHECK(driven.text().summary == "Scripted");
+  CHECK(driven.text().description == "From a control channel");
   driven.requestSave();
   CHECK(driven.outcome() == bug_report::Form::Outcome::SaveRequested);
 }

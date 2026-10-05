@@ -56,6 +56,9 @@ public:
   // to Editing so the player can fix it.
   void rejectSave(std::string_view reason);
 
+  // Replace what the player typed, for keyboardless drivers (a control channel, a test).
+  void fill(const PlayerText &text);
+
   // Programmatic Save / Cancel, for keyboardless drivers (a control channel, a test).
   void requestSave();
   void requestCancel();

@@ -295,6 +295,16 @@ public:
     return control != nullptr ? control->GetValue() : std::string();
   }
 
+  void setValue(const char *id, const std::string &value) {
+    if (mDocument == nullptr) {
+      return;
+    }
+    if (auto *control =
+            rmlui_dynamic_cast<Rml::ElementFormControl *>(mDocument->GetElementById(id))) {
+      control->SetValue(value);
+    }
+  }
+
   void rejectSave(std::string_view reason) {
     if (mDocument == nullptr) {
       return;
@@ -332,6 +342,11 @@ Form::Outcome Form::outcome() const {
 
 PlayerText Form::text() const {
   return PlayerText{mImpl->valueOf("summary"), mImpl->valueOf("description")};
+}
+
+void Form::fill(const PlayerText &text) {
+  mImpl->setValue("summary", text.summary);
+  mImpl->setValue("description", text.description);
 }
 
 void Form::rejectSave(std::string_view reason) {
