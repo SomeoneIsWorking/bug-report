@@ -55,3 +55,5 @@ Keys in the form: Escape cancels, Ctrl+Enter saves, Enter in the summary moves t
 ## Verifying
 
 `python3 tools/verify.py` — clang-format check, Clang build, clang-tidy, CTest.
+
+Built with AI assistance (Claude and other LLMs).
