@@ -1,17 +1,16 @@
-#include "bug_report/draft.h"
 #include "bug_report/form.h"
-#include "bug_report/report.h"
+
+#include <lucent/bug_report.h>
 
 #include <RmlUi/Core.h>
 
 #include <cstdio>
 #include <filesystem>
 #include <fstream>
-#include <iterator>
 #include <string>
 
-// Exercises the shipping draft lifecycle, the report renderings, and the form inside a real RmlUi
-// context: the outcome the player's Save / Cancel / keys produce, and the values read back.
+// Exercises the form inside a real RmlUi context: the outcome the player's Save / Cancel / keys
+// produce, and the values read back. The report and its draft are Lucent's, tested there.
 namespace {
 
 namespace fs = std::filesystem;
@@ -39,142 +38,25 @@ void writeFile(const fs::path &path, const std::string &contents) {
   file.write(contents.data(), static_cast<std::streamsize>(contents.size()));
 }
 
-std::string readFile(const fs::path &path) {
-  std::ifstream file(path, std::ios::binary);
-  return {std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>()};
-}
-
-std::size_t entriesIn(const fs::path &root) {
-  return static_cast<std::size_t>(
-      std::distance(fs::directory_iterator(root), fs::directory_iterator()));
-}
-
 std::chrono::system_clock::time_point fixedNow() {
   return std::chrono::system_clock::time_point(std::chrono::seconds(1790000000));
 }
 
 // Where `file` goes in `draft`; a refused name fails the test and yields a path nothing writes to.
-fs::path attachmentPath(const bug_report::Draft &draft, const char *file) {
+fs::path attachmentPath(const lucent::bug_report::Draft &draft, const char *file) {
   std::string error;
-  const std::optional<fs::path> path = draft.pathFor(file, error);
+  const std::optional<fs::path> path = draft.path_for(file, error);
   CHECK(path.has_value());
   return path.value_or(fs::path());
 }
 
-std::optional<bug_report::Draft> openDraft(const fs::path &root) {
+std::optional<lucent::bug_report::Draft> openDraft(const fs::path &root) {
   std::string error;
-  std::optional<bug_report::Draft> draft =
-      bug_report::Draft::open(root, "Test Title", fixedNow(), error);
+  std::optional<lucent::bug_report::Draft> draft =
+      lucent::bug_report::Draft::open(root, "Test Title", fixedNow(), error);
   CHECK(draft.has_value());
   CHECK(error.empty());
   return draft;
-}
-
-void testCommitWritesReportAndRenames() {
-  const fs::path root = makeRoot("commit");
-  std::optional<bug_report::Draft> draft = openDraft(root);
-  if (!draft) {
-    return;
-  }
-  CHECK(draft->directory().filename().string().ends_with(".draft"));
-
-  std::string error;
-  writeFile(attachmentPath(*draft, "screen.png"), "png");
-  CHECK(draft->attach("screen.png", bug_report::AttachmentRole::Screenshot, "Native", error));
-  draft->addFact("frame", "1234");
-  draft->setReproduction({"Replay the pad", {"step one"}, "replay \"repro.pad\""});
-
-  const std::optional<fs::path> committed = draft->commit({"Tomba falls | through the floor",
-                                                           "line one\nline \"two\"",
-                                                           {{"screen.png", 0.25, 0.1, 0.5, 0.3}}},
-                                                          error);
-  CHECK(committed.has_value());
-  CHECK(!draft->isOpen());
-  if (!committed) {
-    return;
-  }
-  CHECK(committed->filename() == "20260921-141320-tomba-falls-through-the-floor");
-  CHECK(fs::is_regular_file(*committed / "screen.png"));
-  CHECK(!fs::exists(*committed / ".bug-report-draft"));
-
-  const std::string json = readFile(*committed / bug_report::kReportFileName);
-  CHECK(json.find("\"format\": \"bug-report/1\"") != std::string::npos);
-  CHECK(json.find("\"created\": \"2026-09-21T14:13:20Z\"") != std::string::npos);
-  CHECK(json.find("\"description\": \"line one\\nline \\\"two\\\"\"") != std::string::npos);
-  CHECK(json.find("\"role\": \"screenshot\"") != std::string::npos);
-  CHECK(json.find("\"command\": \"replay \\\"repro.pad\\\"\"") != std::string::npos);
-  CHECK(json.find("\"x\": 0.2500") != std::string::npos);
-  CHECK(json.find("\"height\": 0.3000") != std::string::npos);
-
-  const std::string readme = readFile(*committed / bug_report::kReadmeFileName);
-  CHECK(readme.starts_with("# Tomba falls | through the floor\n"));
-  CHECK(readme.find("![Native](screen.png)") != std::string::npos);
-  CHECK(readme.find("| frame | 1234 |") != std::string::npos);
-  CHECK(readme.find("- Marked: x 25%–75%, y 10%–40% of the picture") != std::string::npos);
-  CHECK(entriesIn(root) == 1);
-}
-
-void testRefusals() {
-  const fs::path root = makeRoot("refusals");
-  std::optional<bug_report::Draft> draft = openDraft(root);
-  if (!draft) {
-    return;
-  }
-  std::string error;
-  CHECK(!draft->pathFor("../escape.png", error).has_value());
-  CHECK(!draft->pathFor("sub/dir.png", error).has_value());
-  CHECK(!draft->pathFor("..", error).has_value());
-  CHECK(!draft->pathFor(bug_report::kReportFileName, error).has_value());
-  CHECK(!draft->attach("missing.png", bug_report::AttachmentRole::Screenshot, "x", error));
-
-  writeFile(attachmentPath(*draft, "a.pad"), "pad");
-  CHECK(draft->attach("a.pad", bug_report::AttachmentRole::Reproduction, "pad", error));
-  CHECK(!draft->attach("a.pad", bug_report::AttachmentRole::Reproduction, "pad", error));
-
-  // A mark must lie on an attached picture, inside it.
-  writeFile(attachmentPath(*draft, "shot.png"), "png");
-  CHECK(draft->attach("shot.png", bug_report::AttachmentRole::Screenshot, "shot", error));
-  error.clear();
-  CHECK(!draft->commit({"bad mark", "", {{"a.pad", 0, 0, 0.5, 0.5}}}, error).has_value());
-  CHECK(!error.empty());
-  CHECK(!draft->commit({"bad mark", "", {{"shot.png", 0.8, 0, 0.5, 0.5}}}, error).has_value());
-  CHECK(!draft->commit({"bad mark", "", {{"shot.png", 0, 0, 0, 0.5}}}, error).has_value());
-
-  error.clear();
-  CHECK(!draft->commit({"  \n", ""}, error).has_value());
-  CHECK(!error.empty());
-  CHECK(draft->isOpen());
-}
-
-void testDiscardAndStalePruning() {
-  const fs::path root = makeRoot("discard");
-  fs::path first;
-  {
-    std::optional<bug_report::Draft> draft = openDraft(root);
-    if (!draft) {
-      return;
-    }
-    first = draft->directory();
-    CHECK(fs::is_directory(first));
-  }
-  CHECK(!fs::exists(first)); // destroyed uncommitted = discarded
-
-  // A draft left by a process that died, and a look-alike this library did not create.
-  fs::create_directories(root / "20200101-000000.draft");
-  writeFile(root / "20200101-000000.draft" / ".bug-report-draft", "");
-  fs::create_directories(root / "keep.draft");
-  bug_report::Draft::pruneAbandoned(root);
-  CHECK(!fs::exists(root / "20200101-000000.draft"));
-  CHECK(fs::is_directory(root / "keep.draft"));
-
-  // Opening a draft never prunes: another open draft in this process is not abandoned.
-  std::optional<bug_report::Draft> draft = openDraft(root);
-
-  // Two drafts in the same second do not share a directory.
-  std::optional<bug_report::Draft> second = openDraft(root);
-  if (draft && second) {
-    CHECK(draft->directory() != second->directory());
-  }
 }
 
 // RmlUi needs a render interface to create a context; nothing is drawn in these tests.
@@ -249,7 +131,7 @@ void testMarking(Rml::Context &context, Rml::ElementDocument &document, bug_repo
 
   // Dragged right-to-left and bottom-to-top: the mark is still the box between the two points.
   dragOn(context, frame, {.from = {0.75F, 0.6F}, .to = {0.25F, 0.2F}});
-  std::vector<bug_report::Mark> marks = form.text().marks;
+  std::vector<lucent::bug_report::Mark> marks = form.text().marks;
   CHECK(marks.size() == 1);
   if (marks.size() == 1) {
     CHECK(marks[0].file == "screen.png");
@@ -275,16 +157,16 @@ void testMarking(Rml::Context &context, Rml::ElementDocument &document, bug_repo
 
 void testForm(Rml::Context &context, NullRenderInterface &render) {
   const fs::path root = makeRoot("form");
-  std::optional<bug_report::Draft> draft = openDraft(root);
+  std::optional<lucent::bug_report::Draft> draft = openDraft(root);
   if (!draft) {
     return;
   }
   std::string error;
   writeFile(attachmentPath(*draft, "screen.png"), "png");
-  CHECK(
-      draft->attach("screen.png", bug_report::AttachmentRole::Screenshot, "Native <wide>", error));
+  CHECK(draft->attach("screen.png", lucent::bug_report::AttachmentRole::Screenshot, "Native <wide>",
+                      error));
   writeFile(attachmentPath(*draft, "repro.pad"), "pad");
-  CHECK(draft->attach("repro.pad", bug_report::AttachmentRole::Reproduction, "Pad", error));
+  CHECK(draft->attach("repro.pad", lucent::bug_report::AttachmentRole::Reproduction, "Pad", error));
 
   bug_report::FormOptions options;
   options.fontFamily = "Test Sans";
@@ -323,7 +205,7 @@ void testForm(Rml::Context &context, NullRenderInterface &render) {
         summary->SetValue("Floor clip");
         description->SetValue("Fell through");
       }
-      const bug_report::PlayerText text = form.text();
+      const lucent::bug_report::PlayerText text = form.text();
       CHECK(text.summary == "Floor clip");
       CHECK(text.description == "Fell through");
 
@@ -352,7 +234,7 @@ void testForm(Rml::Context &context, NullRenderInterface &render) {
   CHECK(escaped.outcome() == bug_report::Form::Outcome::Cancelled);
 
   bug_report::Form driven(context, *draft, options);
-  driven.fill(bug_report::PlayerText{
+  driven.fill(lucent::bug_report::PlayerText{
       "Scripted", "From a control channel", {{"screen.png", 0.1, 0.1, 0.2, 0.2}}});
   CHECK(driven.text().marks.size() == 1);
   CHECK(driven.text().summary == "Scripted");
@@ -364,10 +246,6 @@ void testForm(Rml::Context &context, NullRenderInterface &render) {
 } // namespace
 
 int main() {
-  testCommitWritesReportAndRenames();
-  testRefusals();
-  testDiscardAndStalePruning();
-
   NullRenderInterface render;
   Rml::FontEngineInterface fonts; // no text is measured or drawn in these tests
   Rml::SetRenderInterface(&render);

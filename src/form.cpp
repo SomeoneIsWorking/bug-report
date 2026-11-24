@@ -1,6 +1,6 @@
 #include "bug_report/form.h"
 
-#include "bug_report/draft.h"
+#include <lucent/bug_report.h>
 
 #include <RmlUi/Core.h>
 
@@ -10,6 +10,13 @@
 #include <vector>
 
 namespace bug_report {
+
+using lucent::bug_report::Attachment;
+using lucent::bug_report::Draft;
+using lucent::bug_report::is_picture;
+using lucent::bug_report::Mark;
+using lucent::bug_report::PlayerText;
+using lucent::bug_report::Report;
 
 namespace {
 
@@ -194,7 +201,7 @@ std::string buildDocument(const Report &report, const FormOptions &options) {
   rml += "</h1><div id=\"pictures\">";
   std::vector<const Attachment *> others;
   for (const Attachment &attachment : report.attachments) {
-    if (!isPicture(attachment.role)) {
+    if (!is_picture(attachment.role)) {
       others.push_back(&attachment);
       continue;
     }
@@ -274,7 +281,7 @@ public:
     mDocument->GetElementsByClassName(frames, "frame");
     std::size_t next = 0;
     for (const Attachment &attachment : draft.report().attachments) {
-      if (isPicture(attachment.role) && next < frames.size()) {
+      if (is_picture(attachment.role) && next < frames.size()) {
         mFrames.push_back({frames[next++], attachment.file});
       }
     }

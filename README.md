@@ -11,9 +11,9 @@ describe the bug. The report is saved as a folder anyone (or any agent) can read
   screen.png ...   whatever the application attached: pictures, input recordings, saves
 ```
 
-- **`Draft`** owns one report's folder from the moment it is opened until it is committed
+- **`lucent::bug_report::Draft`** (Lucent's `lucent/bug_report.h`) owns one report's folder from the moment it is opened until it is committed
   (renamed to its final name) or discarded (removed). The application writes its captures into
-  `draft.pathFor(name)` and records them with `attach`.
+  `draft.path_for(name)` and records them with `attach`.
 - **`Form`** is a modal RmlUi document loaded into the application's *own* context. It shows every
   picture attachment side by side, lists the rest, and collects a summary and description.
 - **The application owns** the hotkey, freezing, what to capture, the render interface (which must
@@ -21,19 +21,20 @@ describe the bug. The report is saved as a folder anyone (or any agent) can read
 
 ## Consuming
 
-CMake target `bug_report::bug_report` (C++20). Add it after your own RmlUi so it links
-`RmlUi::Core` from the same build. Standard RmlUi version: **6.3**. Built on its own (for its
+CMake target `bug_report::bug_report` (C++20). Add it after your own RmlUi and Lucent so it
+links `RmlUi::Core` and `lucent::lucent` from the same build; without a `lucent::lucent` target it
+adds the shared checkout (`LUCENT_ROOT`, `~/repo/lucent`). Standard RmlUi version: **6.3**. Built on its own (for its
 tests) it takes RmlUi from `BUG_REPORT_RMLUI_DIR` or a sibling `../RmlUi` / `../../RmlUi`.
 
 ```cpp
-bug_report::Draft::pruneAbandoned(root);                 // once, at startup
+lucent::bug_report::Draft::prune_abandoned(root);                 // once, at startup
 
 std::string error;
-auto draft = bug_report::Draft::open(root, "My Game", std::chrono::system_clock::now(), error);
-write_png(*draft->pathFor("screen.png", error), pixels);
-draft->attach("screen.png", bug_report::AttachmentRole::Screenshot, "What you saw", error);
-draft->addFact("frame", std::to_string(frame));
-draft->setReproduction({"Replay the recorded input", {}, "my-game --replay repro.pad"});
+auto draft = lucent::bug_report::Draft::open(root, "My Game", std::chrono::system_clock::now(), error);
+write_png(*draft->path_for("screen.png", error), pixels);
+draft->attach("screen.png", lucent::bug_report::AttachmentRole::Screenshot, "What you saw", error);
+draft->add_fact("frame", std::to_string(frame));
+draft->set_reproduction({"Replay the recorded input", {}, "my-game --replay repro.pad"});
 
 bug_report::Form form(*context, *draft, {.fontFamily = "Fira Sans"});
 // each frame, while frozen: feed events, update and render the context, then:

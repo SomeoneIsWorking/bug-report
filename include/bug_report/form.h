@@ -1,4 +1,4 @@
-// bug_report::Form — the in-window editor for one Draft, as an RmlUi document.
+// bug_report::Form — the in-window editor for one lucent::bug_report::Draft, as an RmlUi document.
 //
 // The form lives in the CONSUMER's RmlUi context: the application keeps its own render interface,
 // system interface, fonts, event routing and frame loop, and this class only loads, drives and
@@ -13,7 +13,7 @@
 // "Clear marks" removes them. Marks come back in text() with the typed words.
 #pragma once
 
-#include "bug_report/report.h"
+#include <lucent/bug_report.h>
 
 #include <cstdint>
 #include <memory>
@@ -25,8 +25,6 @@ class Context;
 } // namespace Rml
 
 namespace bug_report {
-
-class Draft;
 
 struct FormOptions {
   std::string fontFamily;               // a family the consumer already loaded into RmlUi
@@ -45,21 +43,21 @@ public:
   // context must stay alive while the form exists; destroying the form closes its document. When
   // the document cannot be loaded, loaded() is false and outcome() is Cancelled, so a consumer's
   // ordinary cancel path cleans up.
-  Form(Rml::Context &context, const Draft &draft, const FormOptions &options);
+  Form(Rml::Context &context, const lucent::bug_report::Draft &draft, const FormOptions &options);
   ~Form();
   Form(const Form &) = delete;
   Form &operator=(const Form &) = delete;
 
   bool loaded() const;
   Outcome outcome() const;
-  PlayerText text() const;
+  lucent::bug_report::PlayerText text() const;
 
   // A save the consumer could not complete (an empty summary, a disk error): show why and return
   // to Editing so the player can fix it.
   void rejectSave(std::string_view reason);
 
   // Replace what the player typed and marked, for keyboardless drivers (a control channel, a test).
-  void fill(const PlayerText &text);
+  void fill(const lucent::bug_report::PlayerText &text);
 
   // Programmatic Save / Cancel, for keyboardless drivers (a control channel, a test).
   void requestSave();

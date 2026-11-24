@@ -35,14 +35,19 @@ if(NOT TARGET RmlUi::Core)
     add_subdirectory("${BUG_REPORT_RMLUI_DIR}" "${CMAKE_BINARY_DIR}/rmlui" EXCLUDE_FROM_ALL)
 endif()
 
+# Lucent owns the report itself (lucent/bug_report.h); the consumer's own lucent target is used
+# when it exists, else the shared checkout.
+if(NOT TARGET lucent::lucent)
+    set(LUCENT_ROOT "$ENV{HOME}/repo/lucent" CACHE PATH "Shared Lucent checkout")
+    add_subdirectory("${LUCENT_ROOT}" "${CMAKE_BINARY_DIR}/lucent" EXCLUDE_FROM_ALL)
+endif()
+
 add_library(bug_report STATIC
-    src/report.cpp
-    src/draft.cpp
     src/form.cpp)
 add_library(bug_report::bug_report ALIAS bug_report)
 target_include_directories(bug_report PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>)
-target_link_libraries(bug_report PUBLIC RmlUi::Core)
+target_link_libraries(bug_report PUBLIC RmlUi::Core lucent::lucent)
 if(MSVC)
     target_compile_options(bug_report PRIVATE /W4)
 else()
