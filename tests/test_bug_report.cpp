@@ -1,3 +1,4 @@
+#include <cmath>
 #include "bug_report/form.h"
 
 #include <lucent/bug_report.h>
@@ -187,9 +188,14 @@ void testForm(Rml::Context &context, NullRenderInterface &render) {
       Rml::ElementList pictures;
       laidOut->GetElementsByClassName(pictures, "picture");
       CHECK(!pictures.empty());
+      // Each picture a share of the window's height, and Save under them still in the window.
+      const float contextHeight = static_cast<float>(context.GetDimensions().y);
       for (Rml::Element *picture : pictures) {
-        CHECK(picture->GetClientWidth() > contextWidth * 0.4F);
+        Rml::Element *image = picture->GetFirstChild()->GetFirstChild();
+        CHECK(std::abs(image->GetClientHeight() - contextHeight * 0.36F) < 1.0F);
       }
+      Rml::Element *save = laidOut->GetElementById("save");
+      CHECK(save != nullptr && save->GetAbsoluteTop() + save->GetOffsetHeight() <= contextHeight);
       testMarking(context, *laidOut, form);
     }
 

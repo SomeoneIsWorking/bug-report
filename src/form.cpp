@@ -99,9 +99,9 @@ h1 {
 }
 .picture {
   display: block;
-  width: 49%;
   margin-bottom: 10dp;
 }
+/* Its width is set from its picture's shape (Form::Impl::fitFrames); marks are measured on it. */
 .frame {
   display: block;
   position: relative;
@@ -285,6 +285,7 @@ public:
         mFrames.push_back({frames[next++], attachment.file});
       }
     }
+    fitFrames();
     mDocument->Show(Rml::ModalFlag::Modal, Rml::FocusFlag::Document);
     if (Rml::Element *summary = mDocument->GetElementById("summary")) {
       summary->Focus();
@@ -400,6 +401,8 @@ private:
                                              Rml::EventId::Mouseup};
   // Below this fraction of a picture's width or height a press is a click, not a mark.
   static constexpr double kMinimumMark = 0.01;
+  // A picture's height in hundredths of the window's.
+  static constexpr float kPictureHeight = 36.0F;
 
   // A picture's frame in the document and the attachment it shows.
   struct PictureFrame {
@@ -415,6 +418,20 @@ private:
     double startY = 0;
     Mark mark;
   };
+
+  // Each frame as wide as its picture is at kPictureHeight, so the fields and buttons fit under the
+  // pictures on a wide window.
+  void fitFrames() {
+    for (const PictureFrame &shown : mFrames) {
+      Rml::Element *image = shown.frame->GetFirstChild();
+      Rml::Vector2f size;
+      float ratio = 0;
+      if (image != nullptr && image->GetIntrinsicDimensions(size, ratio) && size.y > 0) {
+        shown.frame->SetProperty(Rml::PropertyId::Width,
+                                 Rml::Property(kPictureHeight * size.x / size.y, Rml::Unit::VH));
+      }
+    }
+  }
 
   // The pointer as fractions of the frame's content box (which the picture fills exactly).
   static Rml::Vector2f pointerIn(Rml::Element &frame, const Rml::Event &event) {
